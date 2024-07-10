@@ -10,6 +10,10 @@ use hkdf::Hkdf;
 use hpke::Hpke;
 use hpke_rs_crypto::types as hpke_types;
 use hpke_rs_rust_crypto::HpkeRustCrypto;
+use k256::schnorr::{
+    signature::Verifier as SignatureVerifierK256, Signature as SignatureK256,
+    SigningKey as SigningKeyK256, VerifyingKey as VerifyingKeyK256,
+};
 use openmls_traits::{
     crypto::OpenMlsCrypto,
     random::OpenMlsRand,
@@ -19,7 +23,7 @@ use openmls_traits::{
     },
 };
 use p256::{
-    ecdsa::{signature::Verifier, Signature, SigningKey, VerifyingKey},
+    ecdsa::{Signature, SigningKey, VerifyingKey},
     EncodedPoint,
 };
 use rand::{RngCore, SeedableRng};
@@ -47,6 +51,7 @@ fn kem_mode(kem: HpkeKemType) -> hpke_types::KemAlgorithm {
         HpkeKemType::DhKemP521 => hpke_types::KemAlgorithm::DhKemP521,
         HpkeKemType::DhKem25519 => hpke_types::KemAlgorithm::DhKem25519,
         HpkeKemType::DhKem448 => hpke_types::KemAlgorithm::DhKem448,
+        HpkeKemType::DhKemK256 => hpke_types::KemAlgorithm::DhKemK256,
         HpkeKemType::XWingKemDraft2 => {
             unimplemented!("XWingKemDraft1 is not supported by the RustCrypto provider.")
         }
@@ -77,7 +82,8 @@ impl OpenMlsCrypto for RustCrypto {
         match ciphersuite {
             Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
             | Ciphersuite::MLS_128_DHKEMX25519_CHACHA20POLY1305_SHA256_Ed25519
-            | Ciphersuite::MLS_128_DHKEMP256_AES128GCM_SHA256_P256 => Ok(()),
+            | Ciphersuite::MLS_128_DHKEMP256_AES128GCM_SHA256_P256
+            | Ciphersuite::MLS_256_DHKEMK256_CHACHA20POLY1305_SHA256_K256 => Ok(()),
             _ => Err(CryptoError::UnsupportedCiphersuite),
         }
     }
@@ -87,6 +93,7 @@ impl OpenMlsCrypto for RustCrypto {
             Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519,
             Ciphersuite::MLS_128_DHKEMX25519_CHACHA20POLY1305_SHA256_Ed25519,
             Ciphersuite::MLS_128_DHKEMP256_AES128GCM_SHA256_P256,
+            Ciphersuite::MLS_256_DHKEMK256_CHACHA20POLY1305_SHA256_K256,
         ]
     }
 
@@ -241,6 +248,15 @@ impl OpenMlsCrypto for RustCrypto {
                 let pk = sk.verifying_key().to_bytes().into();
                 Ok((sk.to_bytes().into(), pk))
             }
+            SignatureScheme::SCHNORR_SECP256K1_SHA256 => {
+                let mut rng = self
+                    .rng
+                    .write()
+                    .map_err(|_| CryptoError::InsufficientRandomness)?;
+                let k = SigningKeyK256::random(&mut *rng);
+                let pk = k.verifying_key().to_bytes().to_vec();
+                Ok((k.to_bytes().to_vec(), pk))
+            }
             _ => Err(CryptoError::UnsupportedSignatureScheme),
         }
     }
@@ -275,6 +291,14 @@ impl OpenMlsCrypto for RustCrypto {
                 k.verify_strict(data, &ed25519_dalek::Signature::from(sig))
                     .map_err(|_| CryptoError::InvalidSignature)
             }
+            SignatureScheme::SCHNORR_SECP256K1_SHA256 => {
+                let k = VerifyingKeyK256::from_bytes(pk)
+                    .map_err(|_| CryptoError::CryptoLibraryError)?;
+                let sig = SignatureK256::try_from(signature)
+                    .map_err(|_| CryptoError::CryptoLibraryError)?;
+                k.verify(data, &sig)
+                    .map_err(|_| CryptoError::InvalidSignature)
+            }
             _ => Err(CryptoError::UnsupportedSignatureScheme),
         }
     }
@@ -295,6 +319,12 @@ impl OpenMlsCrypto for RustCrypto {
             SignatureScheme::ED25519 => {
                 let k = ed25519_dalek::SigningKey::try_from(key)
                     .map_err(|_| CryptoError::CryptoLibraryError)?;
+                let signature = k.sign(data);
+                Ok(signature.to_bytes().into())
+            }
+            SignatureScheme::SCHNORR_SECP256K1_SHA256 => {
+                let k =
+                    SigningKeyK256::from_bytes(key).map_err(|_| CryptoError::CryptoLibraryError)?;
                 let signature = k.sign(data);
                 Ok(signature.to_bytes().into())
             }
