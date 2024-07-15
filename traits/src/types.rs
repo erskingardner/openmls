@@ -379,7 +379,7 @@ pub enum Ciphersuite {
     MLS_256_DHKEMP384_AES256GCM_SHA384_P384 = 0x0007,
 
     /// DH KEM secp256k1 | ChaCha20Poly1305 | SHA2-256 | Schnorr secp256k1
-    MLS_256_DHKEMK256_CHACHA20POLY1305_SHA256_K256 = 0xFFAA,
+    MLS_256_DHKEMK256_CHACHA20POLY1305_SHA256_K256 = 0xF2EE,
 
     /// X-WING KEM draft-01 | Chacha20Poly1305 | SHA2-256 | Ed25519
     MLS_256_XWING_CHACHA20POLY1305_SHA256_Ed25519 = 0x004D,
@@ -419,7 +419,7 @@ impl TryFrom<u16> for Ciphersuite {
             0x0006 => Ok(Ciphersuite::MLS_256_DHKEMX448_CHACHA20POLY1305_SHA512_Ed448),
             0x0007 => Ok(Ciphersuite::MLS_256_DHKEMP384_AES256GCM_SHA384_P384),
             0x004D => Ok(Ciphersuite::MLS_256_XWING_CHACHA20POLY1305_SHA256_Ed25519),
-            0xFFAA => Ok(Ciphersuite::MLS_256_DHKEMK256_CHACHA20POLY1305_SHA256_K256),
+            0xF2EE => Ok(Ciphersuite::MLS_256_DHKEMK256_CHACHA20POLY1305_SHA256_K256),
 
             _ => Err(Self::Error::DecodingError(format!(
                 "{v} is not a valid ciphersuite value"
