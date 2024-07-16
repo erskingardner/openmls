@@ -12,6 +12,7 @@ use openmls_traits::{
     types::{CryptoError, SignatureScheme},
 };
 
+use k256::schnorr::SigningKey as SchnorrSigningKey;
 use p256::ecdsa::{signature::Signer as P256Signer, Signature, SigningKey};
 
 use rand::rngs::OsRng;
@@ -57,6 +58,12 @@ impl Signer for SignatureKeyPair {
                 let signature = k.sign(payload);
                 Ok(signature.to_bytes().into())
             }
+            SignatureScheme::SCHNORR_SECP256K1_SHA256 => {
+                let k = SchnorrSigningKey::from_bytes(self.private.as_slice())
+                    .map_err(|_| SignerError::SigningError)?;
+                let signature = k.sign(payload);
+                Ok(signature.to_bytes().to_vec())
+            }
             _ => Err(SignerError::SigningError),
         }
     }
@@ -89,6 +96,11 @@ impl SignatureKeyPair {
                 let sk = ed25519_dalek::SigningKey::generate(&mut OsRng);
                 let pk = sk.verifying_key().to_bytes().into();
                 (sk.to_bytes().into(), pk)
+            }
+            SignatureScheme::SCHNORR_SECP256K1_SHA256 => {
+                let k = SchnorrSigningKey::random(&mut OsRng);
+                let pk = k.verifying_key().to_bytes().to_vec();
+                (k.to_bytes().to_vec(), pk)
             }
             _ => return Err(CryptoError::UnsupportedSignatureScheme),
         };

@@ -12,10 +12,10 @@ readme = "README.md"
 [dependencies]
 openmls_traits = { version = "0.2.0", path = "../traits" }
 openmls_memory_storage = { version = "0.2.0", path = "../memory_storage" }
-hpke = { version = "0.2.0", package = "hpke-rs", default-features = false, features = [
+hpke = { version = "0.2.0", package = "hpke-rs", git = "https://github.com/erskingardner/hpke-rs", branch = "update-kem-algos", default-features = false, features = [
   "hazmat",
   "serialization",
-] }
+] } # TODO: Remove dependency on my fork of hpke-rs
 # Rust Crypto dependencies
 sha2 = { version = "0.10" }
 aes-gcm = { version = "0.10" }
@@ -23,11 +23,12 @@ chacha20poly1305 = { version = "0.10" }
 hmac = { version = "0.12" }
 ed25519-dalek = { version = "2.0", features = ["rand_core"] }
 p256 = { version = "0.13" }
+k256 = { version = "0.13" }
 hkdf = { version = "0.12" }
 rand = "0.8"
 rand_chacha = { version = "0.3" }
-hpke-rs-crypto = { version = "0.2.0" }
-hpke-rs-rust-crypto = { version = "0.2.0" }
+hpke-rs-crypto = { version = "0.2.0", package = "hpke-rs-crypto", git = "https://github.com/erskingardner/hpke-rs", branch = "update-kem-algos" }
+hpke-rs-rust-crypto = { version = "0.2.0", package = "hpke-rs-rust-crypto", git = "https://github.com/erskingardner/hpke-rs", branch = "update-kem-algos" }
 tls_codec = { workspace = true }
 thiserror = "1.0"
 serde = { version = "^1.0", features = ["derive"] }

@@ -17,8 +17,9 @@ serde = "1.0"
 # Rust Crypto
 ed25519-dalek = { version = "2.0", features = ["rand_core"] }
 p256 = { version = "0.13" }
+k256 = { version = "0.13" }
 rand = "0.8"
 
 [features]
-clonable = []     # Make the keys clonable
-test-utils = []   # Only use for tests!
+clonable = []   # Make the keys clonable
+test-utils = [] # Only use for tests!

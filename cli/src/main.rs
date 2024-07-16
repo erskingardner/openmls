@@ -32,17 +32,26 @@ const HELP: &str = "
 ";
 
 fn update(client: &mut user::User, group_id: Option<String>, stdout: &mut StdoutLock) {
-    let messages = client.update(group_id).unwrap();
-    stdout.write_all(b" >>> Updated client :)\n").unwrap();
-    if !messages.is_empty() {
-        stdout.write_all(b"     New messages:\n\n").unwrap();
+    let messages = client.update(group_id);
+    match messages {
+        Ok(messages) => {
+            stdout.write_all(b" >>> Updated client :)\n").unwrap();
+            if !messages.is_empty() {
+                stdout.write_all(b"     New messages:\n\n").unwrap();
+            }
+            messages.iter().for_each(|cm| {
+                stdout
+                    .write_all(format!("         {0} from {1}\n", cm.message, cm.author).as_bytes())
+                    .unwrap();
+            });
+            stdout.write_all(b"\n").unwrap();
+        }
+        Err(e) => {
+            stdout
+                .write_all(format!("Error updating client: {e}\n\n").as_bytes())
+                .unwrap();
+        }
     }
-    messages.iter().for_each(|cm| {
-        stdout
-            .write_all(format!("         {0} from {1}\n", cm.message, cm.author).as_bytes())
-            .unwrap();
-    });
-    stdout.write_all(b"\n").unwrap();
 }
 
 fn main() {
