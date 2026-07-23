@@ -195,6 +195,7 @@ impl AppDataDictionaryExtension {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::extensions::{Extension, ExtensionType};
     use tls_codec::{Deserialize, Serialize};
 
     #[openmls_test::openmls_test]
@@ -272,6 +273,33 @@ mod test {
             err,
             tls_codec::Error::DecodingError(
                 BuildAppDataDictionaryError::EntriesNotInOrder.to_string()
+            )
+        );
+    }
+
+    #[openmls_test::openmls_test]
+    fn test_extension_rejects_trailing_dictionary_bytes() {
+        let mut dictionary = AppDataDictionary::new();
+        let _ = dictionary.insert(0x8001, vec![1, 2, 3]);
+        let mut extension_data = AppDataDictionaryExtension::new(dictionary)
+            .tls_serialize_detached()
+            .unwrap();
+        extension_data.push(0xff);
+
+        let mut serialized = ExtensionType::AppDataDictionary
+            .tls_serialize_detached()
+            .unwrap();
+        serialized.extend_from_slice(
+            &VLBytes::from(extension_data)
+                .tls_serialize_detached()
+                .unwrap(),
+        );
+
+        let err = Extension::tls_deserialize_exact(serialized).unwrap_err();
+        assert_eq!(
+            err,
+            tls_codec::Error::DecodingError(
+                "trailing bytes in app_data_dictionary extension".into()
             )
         );
     }

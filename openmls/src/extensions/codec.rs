@@ -123,9 +123,15 @@ impl Deserialize for Extension {
                 ExternalSendersExtension::tls_deserialize(&mut extension_data)?,
             ),
             #[cfg(feature = "extensions-draft")]
-            ExtensionType::AppDataDictionary => Extension::AppDataDictionary(
-                AppDataDictionaryExtension::tls_deserialize(&mut extension_data)?,
-            ),
+            ExtensionType::AppDataDictionary => {
+                let extension = AppDataDictionaryExtension::tls_deserialize(&mut extension_data)?;
+                if !extension_data.is_empty() {
+                    return Err(tls_codec::Error::DecodingError(
+                        "trailing bytes in app_data_dictionary extension".into(),
+                    ));
+                }
+                Extension::AppDataDictionary(extension)
+            }
             ExtensionType::LastResort => {
                 Extension::LastResort(LastResortExtension::tls_deserialize(&mut extension_data)?)
             }
