@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["AppDataUpdateOperation","AppDataUpdateOperationType","Proposal","ProposalOrRef","ProposalOrRefType","ProposalType"],"struct":["AddProposal","AppAck","AppDataUpdateProposal","AppEphemeralProposal","CustomProposal","ExternalInitProposal","GroupContextExtensionProposal","PreSharedKeyProposal","ReInitProposal","RemoveProposal","UpdateProposal"]};

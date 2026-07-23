@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ProposalIn","ProposalOrRefIn"],"struct":["AddProposalIn","GroupContextExtensionProposalIn","UpdateProposalIn"]};
