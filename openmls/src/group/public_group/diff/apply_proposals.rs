@@ -289,9 +289,9 @@ impl PublicGroupDiff<'_> {
         let extensions_to_update = updated_group_context_extensions
             .get_or_insert_with(|| self.group_context.extensions().clone());
 
-        // update the dictionary extension
+        // Update the dictionary in place; only append it when absent (draft §4.7).
         extensions_to_update
-            .add_or_replace(Extension::AppDataDictionary(
+            .replace_in_place_or_append(Extension::AppDataDictionary(
                 AppDataDictionaryExtension::new(dictionary),
             ))
             .map_err(|_| LibraryError::custom("Failed to update AppDataDictionary extension"))?;

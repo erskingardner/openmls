@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- With `extensions-draft`, AppDataUpdate proposals now preserve an existing AppDataDictionary extension's position in the GroupContext, appending it only when absent. Groups with the dictionary last retain identical bytes; groups with a non-last dictionary need a coordinated rollout or realignment to dictionary-last before mixing patched and unpatched clients.
+
 - With the `extensions-draft` feature enabled, `KeyPackageBuilder::mark_as_last_resort` now encodes the draft-10 `last_resort_key_package` component in the KeyPackage `app_data_dictionary`, instead of emitting the obsolete `last_resort` extension.
 - [#2109](https://github.com/openmls/openmls/pull/2109): `OpenMlsRustCrypto`'s `OpenMlsCrypto::supports` now accepts `MLS_256_MLKEM1024_AES256GCM_SHA512_MLDSA87`, consistent with its `supported_ciphersuites` list (`draft-ietf-mls-pq-ciphersuites` feature).
 - [#2089](https://github.com/openmls/openmls/pull/2089): A Commit without an UpdatePath from this client's own leaf that does not match the pending commit is now staged as a regular commit instead of being rejected as a mismatched own commit.
