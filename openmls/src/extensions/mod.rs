@@ -511,6 +511,26 @@ where
         Ok(())
     }
 
+    /// Replace an extension at its existing position, or append it if absent.
+    ///
+    /// Returns the replaced extension (if any).
+    #[cfg(feature = "extensions-draft")]
+    pub(crate) fn replace_in_place_or_append(
+        &mut self,
+        extension: Extension,
+    ) -> Result<Option<Extension>, InvalidExtensionError> {
+        T::validate_extension_type(&extension)?;
+        if let Some(existing) = self
+            .unique
+            .iter_mut()
+            .find(|existing| existing.extension_type() == extension.extension_type())
+        {
+            return Ok(Some(std::mem::replace(existing, extension)));
+        }
+        self.unique.push(extension);
+        Ok(None)
+    }
+
     /// Add an extension to the extension list (or replace an existing one.)
     ///
     /// Returns the replaced extension (if any).

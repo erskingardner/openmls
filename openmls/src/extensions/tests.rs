@@ -467,3 +467,45 @@ fn app_data_dictionary_extension() {
     // check the dictionary
     assert_eq!(&dictionary, extension.dictionary());
 }
+
+#[cfg(feature = "extensions-draft")]
+#[test]
+fn replace_in_place_or_append_preserves_position() {
+    let original = Extension::AppDataDictionary(AppDataDictionaryExtension::default());
+    let required = Extension::RequiredCapabilities(RequiredCapabilitiesExtension::default());
+    let mut dictionary = AppDataDictionary::new();
+    dictionary.insert(0xf042, b"updated".to_vec());
+    let updated = Extension::AppDataDictionary(AppDataDictionaryExtension::new(dictionary));
+    let mut extensions: Extensions<GroupContext> =
+        Extensions::from_vec(vec![original.clone(), required.clone()]).unwrap();
+
+    assert_eq!(
+        extensions
+            .replace_in_place_or_append(updated.clone())
+            .unwrap(),
+        Some(original)
+    );
+    assert_eq!(
+        extensions.iter().cloned().collect::<Vec<_>>(),
+        vec![updated, required]
+    );
+}
+
+#[cfg(feature = "extensions-draft")]
+#[test]
+fn replace_in_place_or_append_appends_when_absent() {
+    let required = Extension::RequiredCapabilities(RequiredCapabilitiesExtension::default());
+    let dictionary = Extension::AppDataDictionary(AppDataDictionaryExtension::default());
+    let mut extensions: Extensions<GroupContext> = Extensions::single(required.clone()).unwrap();
+
+    assert_eq!(
+        extensions
+            .replace_in_place_or_append(dictionary.clone())
+            .unwrap(),
+        None
+    );
+    assert_eq!(
+        extensions.iter().cloned().collect::<Vec<_>>(),
+        vec![required, dictionary]
+    );
+}

@@ -13,15 +13,6 @@ fn setup<'a, Provider: OpenMlsProvider>(
     ciphersuite: Ciphersuite,
     include_required_capabilities: bool,
 ) -> GroupState<'a, Provider> {
-    // Required capabilities for leaf node
-    let capabilities = Capabilities::new(
-        None,
-        None,
-        Some(&[ExtensionType::AppDataDictionary]),
-        Some(&[ProposalType::AppDataUpdate]),
-        None,
-    );
-
     let required_capabilities_extension =
         Extension::RequiredCapabilities(RequiredCapabilitiesExtension::new(
             &[ExtensionType::AppDataDictionary],
@@ -33,6 +24,29 @@ fn setup<'a, Provider: OpenMlsProvider>(
     } else {
         Extensions::default()
     };
+
+    setup_with_extensions(
+        alice_party,
+        bob_party,
+        ciphersuite,
+        group_context_extensions,
+    )
+}
+
+fn setup_with_extensions<'a, Provider: OpenMlsProvider>(
+    alice_party: &'a CorePartyState<Provider>,
+    bob_party: &'a CorePartyState<Provider>,
+    ciphersuite: Ciphersuite,
+    group_context_extensions: Extensions<GroupContext>,
+) -> GroupState<'a, Provider> {
+    // Required capabilities for leaf node
+    let capabilities = Capabilities::new(
+        None,
+        None,
+        Some(&[ExtensionType::AppDataDictionary]),
+        Some(&[ProposalType::AppDataUpdate]),
+        None,
+    );
 
     // Set up the PreGroups with the required Capabilities
     let alice_pre_group = alice_party.pre_group_builder(ciphersuite).build();
@@ -1089,4 +1103,150 @@ fn test_commit_by_reference_requires_app_data_updates() {
                  but got: {err:?}",
         );
     }
+}
+
+/// Exercise both commit creation and receiver staging with a non-last dictionary.
+#[openmls_test]
+fn test_app_data_update_preserves_dictionary_first() {
+    app_data_update_preserves_position::<Provider>(ciphersuite, true);
+}
+
+/// A last dictionary must retain the bytes produced by remove-and-append.
+#[openmls_test]
+fn test_app_data_update_preserves_dictionary_last() {
+    app_data_update_preserves_position::<Provider>(ciphersuite, false);
+}
+
+fn app_data_update_preserves_position<Provider: OpenMlsProvider + Default>(
+    ciphersuite: Ciphersuite,
+    dictionary_first: bool,
+) {
+    use tls_codec::Serialize;
+
+    let alice_party = CorePartyState::<Provider>::new("alice");
+    let bob_party = CorePartyState::<Provider>::new("bob");
+    let mut dictionary = AppDataDictionary::new();
+    dictionary.insert(0xf042, b"old".to_vec());
+    dictionary.insert(0xf043, b"retained".to_vec());
+    let dictionary_extension =
+        Extension::AppDataDictionary(AppDataDictionaryExtension::new(dictionary.clone()));
+    let required = Extension::RequiredCapabilities(RequiredCapabilitiesExtension::new(
+        &[ExtensionType::AppDataDictionary],
+        &[ProposalType::AppDataUpdate],
+        &[],
+    ));
+    let extensions = Extensions::from_vec(if dictionary_first {
+        vec![dictionary_extension, required]
+    } else {
+        vec![required, dictionary_extension]
+    })
+    .unwrap();
+    let mut group_state =
+        setup_with_extensions(&alice_party, &bob_party, ciphersuite, extensions.clone());
+    let [alice, bob] = group_state.members_mut(&["alice", "bob"]);
+    assert_eq!(alice.group.extensions(), &extensions);
+    assert_eq!(bob.group.extensions(), &extensions);
+
+    let mut stage = alice
+        .group
+        .commit_builder()
+        .add_proposals(vec![Proposal::AppDataUpdate(Box::new(
+            AppDataUpdateProposal::update(0xf042, b"updated"),
+        ))])
+        .load_psks(alice_party.provider.storage())
+        .unwrap();
+    let mut updater = stage.app_data_dictionary_updater();
+    updater.set(ComponentData::from_parts(
+        0xf042,
+        b"updated".to_vec().into(),
+    ));
+    stage.with_app_data_dictionary_updates(updater.changes());
+    let commit_bundle = stage
+        .build(
+            alice_party.provider.rand(),
+            alice_party.provider.crypto(),
+            &alice.party.signer,
+            |_| true,
+        )
+        .unwrap()
+        .stage_commit(&alice_party.provider)
+        .unwrap();
+    let (commit, _, _) = commit_bundle.into_contents();
+    alice
+        .group
+        .merge_pending_commit(&alice_party.provider)
+        .unwrap();
+
+    dictionary.insert(0xf042, b"updated".to_vec());
+    let updated = Extension::AppDataDictionary(AppDataDictionaryExtension::new(dictionary));
+    // Build the expected order independently of the replacement helper.
+    let index = if dictionary_first { 0 } else { 1 };
+    let mut expected_vec: Vec<_> = extensions.iter().cloned().collect();
+    expected_vec[index] = updated.clone();
+    let expected = Extensions::from_vec(expected_vec).unwrap();
+    assert_eq!(alice.group.extensions(), &expected);
+    assert_eq!(
+        alice
+            .group
+            .extensions()
+            .app_data_dictionary()
+            .unwrap()
+            .dictionary()
+            .get(&0xf042),
+        Some(b"updated".as_slice())
+    );
+    assert_eq!(
+        alice
+            .group
+            .extensions()
+            .app_data_dictionary()
+            .unwrap()
+            .dictionary()
+            .get(&0xf043),
+        Some(b"retained".as_slice())
+    );
+
+    if !dictionary_first {
+        let mut legacy_extensions = extensions;
+        legacy_extensions.add_or_replace(updated).unwrap();
+        let mut legacy_context = alice.group.export_group_context().clone();
+        legacy_context.set_extensions(legacy_extensions);
+        assert_eq!(
+            alice
+                .group
+                .export_group_context()
+                .tls_serialize_detached()
+                .unwrap(),
+            legacy_context.tls_serialize_detached().unwrap()
+        );
+    }
+
+    let processed = bob
+        .group
+        .process_message(&bob_party.provider, commit.into_protocol_message().unwrap())
+        .unwrap();
+    let ProcessedMessageContent::UnresolvedAppDataCommit(unresolved) = processed.into_content()
+    else {
+        panic!("Expected an unresolved AppDataUpdate commit");
+    };
+    let mut updater = bob.group.app_data_dictionary_updater();
+    updater.set(ComponentData::from_parts(
+        0xf042,
+        b"updated".to_vec().into(),
+    ));
+    let staged = bob
+        .group
+        .stage_app_data_commit(&bob_party.provider, *unresolved, updater.changes())
+        .expect("confirmation tag must verify with the same extension order");
+    bob.group
+        .merge_staged_commit(&bob_party.provider, staged)
+        .unwrap();
+
+    assert_eq!(bob.group.extensions(), &expected);
+    assert_eq!(alice.group.epoch(), bob.group.epoch());
+    assert_eq!(alice.group.confirmation_tag(), bob.group.confirmation_tag());
+    assert_eq!(
+        alice.group.epoch_authenticator(),
+        bob.group.epoch_authenticator()
+    );
 }
